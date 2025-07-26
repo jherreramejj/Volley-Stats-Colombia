@@ -1,1 +1,548 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estadísticas de Voleibol Comparativo</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (xlsx) para exportar a Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .player-row.selected {
+            background-color: #eff6ff;
+            border-color: #93c5fd;
+            box-shadow: 0 0 0 2px #bfdbfe;
+        }
+        .action-btn, .control-btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .action-btn:active, .control-btn:active {
+            transform: scale(0.95);
+        }
+        .performance-bar {
+            display: flex;
+            width: 100%;
+            height: 0.75rem; /* 12px */
+            background-color: #e5e7eb;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .positive-bar { background-color: #22c55e; }
+        .negative-bar { background-color: #ef4444; }
+        .chart-container {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .team-name-input {
+            border: 2px solid transparent;
+        }
+        .team-name-input:focus {
+            outline: none;
+            border-color: #93c5fd;
+        }
+        /* Estilos para el Modal de Eficacia */
+        #efficacy-modal-backdrop {
+            transition: opacity 0.3s ease;
+        }
+        #efficacy-modal-content {
+            transition: transform 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
 
+    <div class="container mx-auto p-4 md:p-6">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">Estadísticas Comparativas de Voleibol 🏐</h1>
+            <p class="text-gray-600 mt-2">Selecciona un jugador y luego registra la acción en el panel derecho.</p>
+        </header>
+
+        <!-- Panel de Control de Sets y Exportación -->
+        <div class="bg-white p-4 rounded-xl shadow-lg mb-6 flex flex-wrap items-center justify-center gap-4">
+            <div class="font-semibold">
+                Set Actual: <span id="current-set-display" class="text-xl font-bold text-blue-600">1</span>
+            </div>
+            <button id="add-set-btn" class="control-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">
+                Añadir Nuevo Set
+            </button>
+            <button id="export-excel-btn" class="control-btn bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg">
+                Exportar a Excel
+            </button>
+            <button id="reset-all-btn" class="control-btn bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">
+                Reiniciar Todo
+            </button>
+        </div>
+        
+        <div id="alert-message" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6 rounded-md" role="alert">
+            <p class="font-bold">¡Atención!</p>
+            <p>Por favor, selecciona primero un jugador antes de registrar una acción.</p>
+        </div>
+
+        <!-- Contenedor Principal de Equipos -->
+        <main class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- Columna Equipo Local -->
+            <div class="bg-white p-5 rounded-xl shadow-lg flex flex-col">
+                <input type="text" id="local-team-name" value="Equipo Local" class="team-name-input text-2xl font-bold mb-4 text-center text-blue-600 bg-transparent w-full rounded-md p-1">
+                <div class="flex-grow flex mt-2 gap-2">
+                    <div class="w-1/2 space-y-2">
+                        <div id="local-players-list"></div>
+                         <button id="add-local-player-btn" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg transition-colors mt-2 border border-blue-200">
+                            + Añadir Jugador
+                        </button>
+                    </div>
+                    <div class="actions-panel w-1/2 flex justify-center gap-2 border-l pl-2">
+                        <div class="flex flex-col items-center space-y-2">
+                            <button data-action="S+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">S+</button>
+                            <button data-action="A+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">A+</button>
+                            <button data-action="B+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">B+</button>
+                        </div>
+                        <div class="flex flex-col items-center space-y-2">
+                            <button data-action="S-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">S-</button>
+                            <button data-action="A-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">A-</button>
+                            <button data-action="B-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">B-</button>
+                            <button data-action="D-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">D-</button>
+                            <button data-action="P-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">P-</button>
+                        </div>
+                         <div class="flex flex-col items-center space-y-2">
+                            <button data-action="R0" class="action-btn bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">R0</button>
+                            <button data-action="R1" class="action-btn bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">R1</button>
+                            <button data-action="R2" class="action-btn bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">R2</button>
+                            <button data-action="R3" class="action-btn bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">R3</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna Equipo Rival -->
+            <div class="bg-white p-5 rounded-xl shadow-lg flex flex-col">
+                <input type="text" id="rival-team-name" value="Equipo Rival" class="team-name-input text-2xl font-bold mb-4 text-center text-red-600 bg-transparent w-full rounded-md p-1">
+                <div class="flex-grow flex mt-2 gap-2">
+                    <div class="w-1/2 space-y-2">
+                        <div id="rival-players-list"></div>
+                        <button id="add-rival-player-btn" class="w-full bg-red-50 hover:bg-red-100 text-red-700 font-semibold py-2 px-4 rounded-lg transition-colors mt-2 border border-red-200">
+                            + Añadir Jugador
+                        </button>
+                    </div>
+                    <div class="actions-panel w-1/2 flex justify-center gap-2 border-l pl-2">
+                        <div class="flex flex-col items-center space-y-2">
+                            <button data-action="S+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">S+</button>
+                            <button data-action="A+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">A+</button>
+                            <button data-action="B+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">B+</button>
+                        </div>
+                        <div class="flex flex-col items-center space-y-2">
+                            <button data-action="S-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">S-</button>
+                            <button data-action="A-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">A-</button>
+                            <button data-action="B-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">B-</button>
+                            <button data-action="D-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">D-</button>
+                            <button data-action="P-" class="action-btn bg-red-500 hover:bg-red-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">P-</button>
+                        </div>
+                        <div class="flex flex-col items-center space-y-2">
+                            <button data-action="R0" class="action-btn bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">R0</button>
+                            <button data-action="R1" class="action-btn bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">R1</button>
+                            <button data-action="R2" class="action-btn bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">R2</button>
+                            <button data-action="R3" class="action-btn bg-purple-500 hover:bg-purple-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">R3</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Sección de Gráficos -->
+        <div id="charts-main-section" class="mt-8">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div id="local-charts-section">
+                    <h2 id="local-charts-title" class="text-2xl font-bold mb-4 text-center text-blue-600">Gráficos Equipo Local</h2>
+                    <div id="local-charts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+                <div id="rival-charts-section">
+                    <h2 id="rival-charts-title" class="text-2xl font-bold mb-4 text-center text-red-600">Gráficos Equipo Rival</h2>
+                    <div id="rival-charts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Eficacia Relativa -->
+    <div id="efficacy-modal-backdrop" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden opacity-0">
+        <div id="efficacy-modal-content" class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="efficacy-modal-title" class="text-xl font-bold">Eficacia Relativa</h3>
+                <button id="efficacy-modal-close" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div id="efficacy-modal-body" class="text-gray-700">
+                <!-- Contenido se inyecta aquí -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // --- ELEMENTOS DEL DOM ---
+        const alertMessage = document.getElementById('alert-message');
+        const localTeamNameInput = document.getElementById('local-team-name');
+        const rivalTeamNameInput = document.getElementById('rival-team-name');
+        const localChartsTitle = document.getElementById('local-charts-title');
+        const rivalChartsTitle = document.getElementById('rival-charts-title');
+        const currentSetDisplay = document.getElementById('current-set-display');
+        const addSetBtn = document.getElementById('add-set-btn');
+        const exportExcelBtn = document.getElementById('export-excel-btn');
+        const resetAllBtn = document.getElementById('reset-all-btn');
+        const addLocalPlayerBtn = document.getElementById('add-local-player-btn');
+        const addRivalPlayerBtn = document.getElementById('add-rival-player-btn');
+        const modalBackdrop = document.getElementById('efficacy-modal-backdrop');
+        const modalContent = document.getElementById('efficacy-modal-content');
+        const modalTitle = document.getElementById('efficacy-modal-title');
+        const modalBody = document.getElementById('efficacy-modal-body');
+        const modalCloseBtn = document.getElementById('efficacy-modal-close');
+
+        // --- ESTADO DE LA APLICACIÓN ---
+        let teamsData = {};
+        let selected = {};
+        let nextPlayerId = 0;
+        let charts = [];
+        let currentSetIndex = 0;
+        let totalSets = 1;
+
+        const actionTypes = ['S+', 'S-', 'A+', 'A-', 'B+', 'B-', 'D-', 'P-', 'R0', 'R1', 'R2', 'R3'];
+
+        // --- FUNCIONES DE INICIALIZACIÓN Y REINICIO ---
+        function getNewStatsObject() {
+            return actionTypes.reduce((acc, action) => ({ ...acc, [action]: 0 }), {});
+        }
+
+        function init() {
+            teamsData = {
+                local: {
+                    name: 'Equipo Local', players: [],
+                    listElement: document.getElementById('local-players-list'),
+                    chartGrid: document.getElementById('local-charts-grid'),
+                    chartTitleElement: localChartsTitle
+                },
+                rival: {
+                    name: 'Equipo Rival', players: [],
+                    listElement: document.getElementById('rival-players-list'),
+                    chartGrid: document.getElementById('rival-charts-grid'),
+                    chartTitleElement: rivalChartsTitle
+                }
+            };
+            selected = { teamKey: null, playerIndex: null };
+            nextPlayerId = 0;
+            charts.forEach(chart => chart.destroy());
+            charts = [];
+            currentSetIndex = 0;
+            totalSets = 1;
+
+            localTeamNameInput.value = teamsData.local.name;
+            rivalTeamNameInput.value = teamsData.rival.name;
+            
+            for (let i = 0; i < 3; i++) {
+                addNewPlayer('local');
+                addNewPlayer('rival');
+            }
+            updateCurrentSetDisplay();
+            renderAllPlayers();
+            renderPlayerCharts();
+        }
+
+        function resetAll() {
+            if (confirm('¿Estás seguro de que quieres reiniciar todo? Se borrarán todos los datos y jugadores.')) {
+                init();
+            }
+        }
+
+        // --- FUNCIONES DE MANEJO DE JUGADORES Y SETS ---
+        function addNewPlayer(teamKey) {
+            const team = teamsData[teamKey];
+            const newPlayer = {
+                id: nextPlayerId++,
+                name: `Jugador ${team.players.length + 1}`,
+                sets: Array.from({ length: totalSets }, () => getNewStatsObject())
+            };
+            team.players.push(newPlayer);
+            renderAllPlayers();
+            renderPlayerCharts();
+        }
+
+        function addSet() {
+            totalSets++;
+            currentSetIndex = totalSets - 1;
+            Object.values(teamsData).forEach(team => {
+                team.players.forEach(player => {
+                    player.sets.push(getNewStatsObject());
+                });
+            });
+            updateCurrentSetDisplay();
+            renderAllPlayers(); // Re-render para mostrar la UI del nuevo set
+            renderPlayerCharts();
+        }
+
+        function updateCurrentSetDisplay() {
+            currentSetDisplay.textContent = currentSetIndex + 1;
+        }
+
+        // --- FUNCIONES DE RENDERIZADO ---
+        function renderAllPlayers() {
+            Object.keys(teamsData).forEach(teamKey => {
+                const team = teamsData[teamKey];
+                team.listElement.innerHTML = '';
+                team.players.forEach((player, index) => {
+                    renderPlayerRow(player, teamKey, index);
+                });
+            });
+        }
+
+        function renderPlayerRow(player, teamKey, index) {
+            const playerRow = document.createElement('div');
+            playerRow.className = 'player-row p-2 rounded-lg border border-gray-200 transition-all cursor-pointer';
+            playerRow.dataset.team = teamKey;
+            playerRow.dataset.index = index;
+
+            if (selected.teamKey === teamKey && selected.playerIndex === index) {
+                playerRow.classList.add('selected');
+            }
+            
+            const currentSetStats = player.sets[currentSetIndex] || getNewStatsObject();
+
+            const totalPositive = (currentSetStats['S+'] || 0) + (currentSetStats['A+'] || 0) + (currentSetStats['B+'] || 0);
+            const totalNegative = (currentSetStats['S-'] || 0) + (currentSetStats['A-'] || 0) + (currentSetStats['B-'] || 0) + (currentSetStats['D-'] || 0) + (currentSetStats['P-'] || 0);
+            const totalActions = totalPositive + totalNegative;
+            const positiveWidth = totalActions > 0 ? (totalPositive / totalActions) * 100 : 0;
+            const negativeWidth = totalActions > 0 ? (totalNegative / totalActions) * 100 : 0;
+
+            playerRow.innerHTML = `
+                <input type="text" value="${player.name}" class="player-input w-full font-semibold bg-transparent focus:bg-white mb-1 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" data-team="${teamKey}" data-index="${index}">
+                <div class="performance-bar">
+                    <div class="positive-bar" style="width: ${positiveWidth}%;"></div>
+                    <div class="negative-bar" style="width: ${negativeWidth}%;"></div>
+                </div>
+            `;
+            teamsData[teamKey].listElement.appendChild(playerRow);
+        }
+
+        function renderPlayerCharts() {
+            charts.forEach(chart => chart.destroy());
+            charts = [];
+
+            Object.keys(teamsData).forEach(teamKey => {
+                const team = teamsData[teamKey];
+                team.chartGrid.innerHTML = ''; 
+                team.chartTitleElement.textContent = `Gráficos ${team.name}`;
+
+                if (team.players.length === 0) return;
+
+                team.players.forEach((player, playerIndex) => {
+                    const chartWrapper = document.createElement('div');
+                    chartWrapper.className = 'chart-container';
+                    const canvas = document.createElement('canvas');
+                    chartWrapper.appendChild(canvas);
+                    team.chartGrid.appendChild(chartWrapper);
+
+                    const currentSetStats = player.sets[currentSetIndex] || getNewStatsObject();
+
+                    const playerData = actionTypes.map(action => currentSetStats[action] || 0);
+                    const playerColors = actionTypes.map(action => {
+                        if (action.includes('+')) return 'rgba(34, 197, 94, 0.8)'; // Verde
+                        if (action.includes('-')) return 'rgba(239, 68, 68, 0.8)'; // Rojo
+                        return 'rgba(168, 85, 247, 0.8)'; // Morado para R0, R1, etc.
+                    });
+
+                    const chart = new Chart(canvas, {
+                        type: 'bar',
+                        data: {
+                            labels: actionTypes,
+                            datasets: [{
+                                label: 'Acciones',
+                                data: playerData,
+                                backgroundColor: playerColors,
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            onClick: (e, elements) => handleChartClick(e, elements, teamKey, playerIndex),
+                            plugins: { 
+                                legend: { display: false }, 
+                                title: { 
+                                    display: true, 
+                                    text: player.name, 
+                                    font: { size: 14 }
+                                } 
+                            },
+                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                        }
+                    });
+                    charts.push(chart);
+                });
+            });
+        }
+        
+        // --- HANDLERS DE EVENTOS ---
+        function selectPlayer(teamKey, playerIndex) {
+            selected = { teamKey, playerIndex: parseInt(playerIndex) };
+            alertMessage.classList.add('hidden');
+            renderAllPlayers();
+        }
+        
+        function handleActionClick(e) {
+            const button = e.target.closest('.action-btn');
+            if (!button) return;
+
+            if (selected.teamKey === null || selected.playerIndex === null) {
+                alertMessage.classList.remove('hidden');
+                window.scrollTo(0, 0);
+                return;
+            }
+
+            const action = button.dataset.action;
+            const player = teamsData[selected.teamKey].players[selected.playerIndex];
+            
+            if (player && player.sets[currentSetIndex]) {
+                player.sets[currentSetIndex][action]++;
+                renderAllPlayers();
+                renderPlayerCharts();
+            }
+        }
+
+        function handleTeamNameChange(e, teamKey) {
+            teamsData[teamKey].name = e.target.value;
+            renderPlayerCharts();
+        }
+        
+        function handlePlayerNameChange(e) {
+            const input = e.target;
+            const teamKey = input.dataset.team;
+            const index = parseInt(input.dataset.index);
+            teamsData[teamKey].players[index].name = input.value;
+            renderPlayerCharts();
+        }
+
+        function handleChartClick(e, elements, teamKey, playerIndex) {
+            if (elements.length === 0) return;
+            const elementIndex = elements[0].index;
+            const actionLabel = actionTypes[elementIndex];
+            const player = teamsData[teamKey].players[playerIndex];
+            const currentSetStats = player.sets[currentSetIndex];
+
+            const actionBase = actionLabel.charAt(0);
+            const validBases = ['S', 'A', 'B'];
+            if (!validBases.includes(actionBase)) return;
+
+            const positiveAction = actionBase + '+';
+            const negativeAction = actionBase + '-';
+
+            const positives = currentSetStats[positiveAction] || 0;
+            const negatives = currentSetStats[negativeAction] || 0;
+            const total = positives + negatives;
+            let efficacy = 0;
+
+            if (total > 0) {
+                efficacy = (positives - negatives) / total;
+            }
+
+            modalTitle.textContent = `Eficacia de ${actionBase} para ${player.name}`;
+            modalBody.innerHTML = `
+                <p><strong>Positivas (${positiveAction}):</strong> ${positives}</p>
+                <p><strong>Negativas (${negativeAction}):</strong> ${negatives}</p>
+                <p><strong>Total de Acciones:</strong> ${total}</p>
+                <hr class="my-2">
+                <p class="text-lg"><strong>Fórmula:</strong> (${positives} - ${negatives}) / ${total}</p>
+                <p class="text-2xl font-bold mt-2">Resultado: <span class="text-blue-600">${efficacy.toFixed(2)}</span></p>
+            `;
+            showModal();
+        }
+
+        function showModal() {
+            modalBackdrop.classList.remove('hidden');
+            setTimeout(() => {
+                modalBackdrop.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function hideModal() {
+            modalBackdrop.classList.add('opacity-0');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modalBackdrop.classList.add('hidden');
+            }, 300);
+        }
+
+        // --- FUNCIÓN DE EXPORTACIÓN ---
+        function exportToExcel() {
+            const wb = XLSX.utils.book_new();
+
+            Object.keys(teamsData).forEach(teamKey => {
+                const team = teamsData[teamKey];
+                const ws_data = [];
+                
+                const header = ['Jugador', 'Set', ...actionTypes];
+                ws_data.push(header);
+
+                team.players.forEach(player => {
+                    player.sets.forEach((set, setIndex) => {
+                        const row = [player.name, setIndex + 1];
+                        actionTypes.forEach(action => {
+                            row.push(set[action] || 0);
+                        });
+                        ws_data.push(row);
+                    });
+                });
+
+                const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                XLSX.utils.book_append_sheet(wb, ws, team.name.substring(0, 31));
+            });
+
+            XLSX.writeFile(wb, 'estadisticas_voleibol.xlsx');
+        }
+
+        // --- EVENT LISTENERS ---
+        localTeamNameInput.addEventListener('input', (e) => handleTeamNameChange(e, 'local'));
+        rivalTeamNameInput.addEventListener('input', (e) => handleTeamNameChange(e, 'rival'));
+        addSetBtn.addEventListener('click', addSet);
+        exportExcelBtn.addEventListener('click', exportToExcel);
+        resetAllBtn.addEventListener('click', resetAll);
+        modalCloseBtn.addEventListener('click', hideModal);
+        modalBackdrop.addEventListener('click', (e) => {
+            if (e.target === modalBackdrop) {
+                hideModal();
+            }
+        });
+
+        addLocalPlayerBtn.addEventListener('click', () => addNewPlayer('local'));
+        addRivalPlayerBtn.addEventListener('click', () => addNewPlayer('rival'));
+
+        document.body.addEventListener('click', (e) => {
+            const button = e.target.closest('.action-btn');
+            if (button) {
+                handleActionClick(e);
+                return;
+            }
+
+            const playerRow = e.target.closest('.player-row');
+            if (playerRow) {
+                selectPlayer(playerRow.dataset.team, playerRow.dataset.index);
+            }
+        });
+
+        document.body.addEventListener('change', (e) => {
+            if (e.target.classList.contains('player-input')) {
+                handlePlayerNameChange(e);
+            }
+        });
+
+        // --- INICIALIZACIÓN ---
+        init();
+    });
+    </script>
+</body>
+</html>
