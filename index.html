@@ -49,6 +49,13 @@
             outline: none;
             border-color: #93c5fd;
         }
+        /* Estilos para el Modal de Eficacia */
+        #efficacy-modal-backdrop {
+            transition: opacity 0.3s ease;
+        }
+        #efficacy-modal-content {
+            transition: transform 0.3s ease;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -87,14 +94,12 @@
             <div class="bg-white p-5 rounded-xl shadow-lg flex flex-col">
                 <input type="text" id="local-team-name" value="Equipo Local" class="team-name-input text-2xl font-bold mb-4 text-center text-blue-600 bg-transparent w-full rounded-md p-1">
                 <div class="flex-grow flex mt-2 gap-2">
-                    <!-- Lista de Jugadores -->
                     <div class="w-1/2 space-y-2">
                         <div id="local-players-list"></div>
                          <button id="add-local-player-btn" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg transition-colors mt-2 border border-blue-200">
                             + Añadir Jugador
                         </button>
                     </div>
-                    <!-- Panel de Acciones Fijo -->
                     <div class="actions-panel w-1/2 flex justify-center gap-2 border-l pl-2">
                         <div class="flex flex-col items-center space-y-2">
                             <button data-action="S+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">S+</button>
@@ -155,19 +160,29 @@
         <!-- Sección de Gráficos -->
         <div id="charts-main-section" class="mt-8">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Columna Gráficos Equipo Local -->
                 <div id="local-charts-section">
                     <h2 id="local-charts-title" class="text-2xl font-bold mb-4 text-center text-blue-600">Gráficos Equipo Local</h2>
                     <div id="local-charts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </div>
-                <!-- Columna Gráficos Equipo Rival -->
                 <div id="rival-charts-section">
                     <h2 id="rival-charts-title" class="text-2xl font-bold mb-4 text-center text-red-600">Gráficos Equipo Rival</h2>
                     <div id="rival-charts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                 </div>
             </div>
         </div>
+    </div>
 
+    <!-- Modal para Eficacia Relativa -->
+    <div id="efficacy-modal-backdrop" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden opacity-0">
+        <div id="efficacy-modal-content" class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md transform scale-95">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="efficacy-modal-title" class="text-xl font-bold">Eficacia Relativa</h3>
+                <button id="efficacy-modal-close" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div id="efficacy-modal-body" class="text-gray-700">
+                <!-- Contenido se inyecta aquí -->
+            </div>
+        </div>
     </div>
 
     <script>
@@ -184,6 +199,11 @@
         const resetAllBtn = document.getElementById('reset-all-btn');
         const addLocalPlayerBtn = document.getElementById('add-local-player-btn');
         const addRivalPlayerBtn = document.getElementById('add-rival-player-btn');
+        const modalBackdrop = document.getElementById('efficacy-modal-backdrop');
+        const modalContent = document.getElementById('efficacy-modal-content');
+        const modalTitle = document.getElementById('efficacy-modal-title');
+        const modalBody = document.getElementById('efficacy-modal-body');
+        const modalCloseBtn = document.getElementById('efficacy-modal-close');
 
         // --- ESTADO DE LA APLICACIÓN ---
         let teamsData = {};
@@ -262,6 +282,8 @@
                 });
             });
             updateCurrentSetDisplay();
+            renderAllPlayers(); // Re-render para mostrar la UI del nuevo set
+            renderPlayerCharts();
         }
 
         function updateCurrentSetDisplay() {
@@ -289,15 +311,10 @@
                 playerRow.classList.add('selected');
             }
             
-            const totalStats = player.sets.reduce((acc, set) => {
-                Object.entries(set).forEach(([key, value]) => {
-                    acc[key] = (acc[key] || 0) + value;
-                });
-                return acc;
-            }, {});
+            const currentSetStats = player.sets[currentSetIndex] || getNewStatsObject();
 
-            const totalPositive = (totalStats['S+'] || 0) + (totalStats['A+'] || 0) + (totalStats['B+'] || 0);
-            const totalNegative = (totalStats['S-'] || 0) + (totalStats['A-'] || 0) + (totalStats['B-'] || 0) + (totalStats['D-'] || 0) + (totalStats['P-'] || 0);
+            const totalPositive = (currentSetStats['S+'] || 0) + (currentSetStats['A+'] || 0) + (currentSetStats['B+'] || 0);
+            const totalNegative = (currentSetStats['S-'] || 0) + (currentSetStats['A-'] || 0) + (currentSetStats['B-'] || 0) + (currentSetStats['D-'] || 0) + (currentSetStats['P-'] || 0);
             const totalActions = totalPositive + totalNegative;
             const positiveWidth = totalActions > 0 ? (totalPositive / totalActions) * 100 : 0;
             const negativeWidth = totalActions > 0 ? (totalNegative / totalActions) * 100 : 0;
@@ -323,21 +340,16 @@
 
                 if (team.players.length === 0) return;
 
-                team.players.forEach(player => {
+                team.players.forEach((player, playerIndex) => {
                     const chartWrapper = document.createElement('div');
                     chartWrapper.className = 'chart-container';
                     const canvas = document.createElement('canvas');
                     chartWrapper.appendChild(canvas);
                     team.chartGrid.appendChild(chartWrapper);
 
-                    const totalStats = player.sets.reduce((acc, set) => {
-                        Object.entries(set).forEach(([key, value]) => {
-                            acc[key] = (acc[key] || 0) + value;
-                        });
-                        return acc;
-                    }, {});
+                    const currentSetStats = player.sets[currentSetIndex] || getNewStatsObject();
 
-                    const playerData = actionTypes.map(action => totalStats[action] || 0);
+                    const playerData = actionTypes.map(action => currentSetStats[action] || 0);
                     const playerColors = actionTypes.map(action => {
                         if (action.includes('+')) return 'rgba(34, 197, 94, 0.8)'; // Verde
                         if (action.includes('-')) return 'rgba(239, 68, 68, 0.8)'; // Rojo
@@ -357,7 +369,15 @@
                         },
                         options: {
                             responsive: true,
-                            plugins: { legend: { display: false }, title: { display: true, text: player.name, font: { size: 14 } } },
+                            plugins: { 
+                                legend: { display: false }, 
+                                title: { 
+                                    display: true, 
+                                    text: player.name, 
+                                    font: { size: 14 },
+                                    onClick: () => handleTitleClick(teamKey, playerIndex)
+                                } 
+                            },
                             scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
                         }
                     });
@@ -406,6 +426,47 @@
             renderPlayerCharts();
         }
 
+        function handleTitleClick(teamKey, playerIndex) {
+            const player = teamsData[teamKey].players[playerIndex];
+            const currentSetStats = player.sets[currentSetIndex];
+
+            const positives = (currentSetStats['S+'] || 0) + (currentSetStats['A+'] || 0) + (currentSetStats['B+'] || 0);
+            const negatives = (currentSetStats['S-'] || 0) + (currentSetStats['A-'] || 0) + (currentSetStats['B-'] || 0) + (currentSetStats['D-'] || 0) + (currentSetStats['P-'] || 0);
+            const total = positives + negatives;
+            let efficacy = 0;
+
+            if (total > 0) {
+                efficacy = (positives - negatives) / total;
+            }
+
+            modalTitle.textContent = `Eficacia General para ${player.name}`;
+            modalBody.innerHTML = `
+                <p><strong>Total Positivas (S+, A+, B+):</strong> ${positives}</p>
+                <p><strong>Total Negativas (S-, A-, B-, D-, P-):</strong> ${negatives}</p>
+                <p><strong>Total de Acciones Evaluadas:</strong> ${total}</p>
+                <hr class="my-2">
+                <p class="text-lg"><strong>Fórmula:</strong> (${positives} - ${negatives}) / ${total}</p>
+                <p class="text-2xl font-bold mt-2">Resultado: <span class="text-blue-600">${efficacy.toFixed(2)}</span></p>
+            `;
+            showModal();
+        }
+
+        function showModal() {
+            modalBackdrop.classList.remove('hidden');
+            setTimeout(() => {
+                modalBackdrop.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function hideModal() {
+            modalBackdrop.classList.add('opacity-0');
+            modalContent.classList.add('scale-95');
+            setTimeout(() => {
+                modalBackdrop.classList.add('hidden');
+            }, 300);
+        }
+
         // --- FUNCIÓN DE EXPORTACIÓN ---
         function exportToExcel() {
             const wb = XLSX.utils.book_new();
@@ -414,11 +475,9 @@
                 const team = teamsData[teamKey];
                 const ws_data = [];
                 
-                // Header
                 const header = ['Jugador', 'Set', ...actionTypes];
                 ws_data.push(header);
 
-                // Player data
                 team.players.forEach(player => {
                     player.sets.forEach((set, setIndex) => {
                         const row = [player.name, setIndex + 1];
@@ -430,7 +489,7 @@
                 });
 
                 const ws = XLSX.utils.aoa_to_sheet(ws_data);
-                XLSX.utils.book_append_sheet(wb, ws, team.name.substring(0, 31)); // Sheet name limit is 31 chars
+                XLSX.utils.book_append_sheet(wb, ws, team.name.substring(0, 31));
             });
 
             XLSX.writeFile(wb, 'estadisticas_voleibol.xlsx');
@@ -442,6 +501,12 @@
         addSetBtn.addEventListener('click', addSet);
         exportExcelBtn.addEventListener('click', exportToExcel);
         resetAllBtn.addEventListener('click', resetAll);
+        modalCloseBtn.addEventListener('click', hideModal);
+        modalBackdrop.addEventListener('click', (e) => {
+            if (e.target === modalBackdrop) {
+                hideModal();
+            }
+        });
 
         addLocalPlayerBtn.addEventListener('click', () => addNewPlayer('local'));
         addRivalPlayerBtn.addEventListener('click', () => addNewPlayer('rival'));
