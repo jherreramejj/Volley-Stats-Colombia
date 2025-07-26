@@ -41,6 +41,7 @@
             padding: 1rem;
             border-radius: 1rem;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            cursor: pointer;
         }
         .team-name-input {
             border: 2px solid transparent;
@@ -343,6 +344,7 @@
                 team.players.forEach((player, playerIndex) => {
                     const chartWrapper = document.createElement('div');
                     chartWrapper.className = 'chart-container';
+                    chartWrapper.addEventListener('click', () => handleTitleClick(teamKey, playerIndex));
                     const canvas = document.createElement('canvas');
                     chartWrapper.appendChild(canvas);
                     team.chartGrid.appendChild(chartWrapper);
@@ -374,8 +376,7 @@
                                 title: { 
                                     display: true, 
                                     text: player.name, 
-                                    font: { size: 14 },
-                                    onClick: () => handleTitleClick(teamKey, playerIndex)
+                                    font: { size: 14 }
                                 } 
                             },
                             scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
