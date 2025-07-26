@@ -93,14 +93,14 @@
             <!-- Columna Equipo Local -->
             <div class="bg-white p-5 rounded-xl shadow-lg flex flex-col">
                 <input type="text" id="local-team-name" value="Equipo Local" class="team-name-input text-2xl font-bold mb-4 text-center text-blue-600 bg-transparent w-full rounded-md p-1">
-                <div class="flex-grow flex mt-2 gap-2">
-                    <div class="w-1/2 space-y-2">
+                <div class="flex-grow flex flex-col md:flex-row mt-2 gap-4">
+                    <div class="w-full md:w-1/2 space-y-2">
                         <div id="local-players-list"></div>
                          <button id="add-local-player-btn" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg transition-colors mt-2 border border-blue-200">
                             + Añadir Jugador
                         </button>
                     </div>
-                    <div class="actions-panel w-1/2 flex justify-center gap-2 border-l pl-2">
+                    <div class="actions-panel w-full md:w-1/2 flex justify-center gap-2 md:border-l pt-4 md:pt-0 border-t md:border-t-0 border-gray-200 md:pl-2">
                         <div class="flex flex-col items-center space-y-2">
                             <button data-action="S+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">S+</button>
                             <button data-action="A+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">A+</button>
@@ -126,14 +126,14 @@
             <!-- Columna Equipo Rival -->
             <div class="bg-white p-5 rounded-xl shadow-lg flex flex-col">
                 <input type="text" id="rival-team-name" value="Equipo Rival" class="team-name-input text-2xl font-bold mb-4 text-center text-red-600 bg-transparent w-full rounded-md p-1">
-                <div class="flex-grow flex mt-2 gap-2">
-                    <div class="w-1/2 space-y-2">
+                <div class="flex-grow flex flex-col md:flex-row mt-2 gap-4">
+                    <div class="w-full md:w-1/2 space-y-2">
                         <div id="rival-players-list"></div>
                         <button id="add-rival-player-btn" class="w-full bg-red-50 hover:bg-red-100 text-red-700 font-semibold py-2 px-4 rounded-lg transition-colors mt-2 border border-red-200">
                             + Añadir Jugador
                         </button>
                     </div>
-                    <div class="actions-panel w-1/2 flex justify-center gap-2 border-l pl-2">
+                    <div class="actions-panel w-full md:w-1/2 flex justify-center gap-2 md:border-l pt-4 md:pt-0 border-t md:border-t-0 border-gray-200 md:pl-2">
                         <div class="flex flex-col items-center space-y-2">
                             <button data-action="S+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">S+</button>
                             <button data-action="A+" class="action-btn bg-green-500 hover:bg-green-600 text-white font-bold text-sm rounded-full w-10 h-10 flex items-center justify-center shadow-md">A+</button>
@@ -162,11 +162,11 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div id="local-charts-section">
                     <h2 id="local-charts-title" class="text-2xl font-bold mb-4 text-center text-blue-600">Gráficos Equipo Local</h2>
-                    <div id="local-charts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                    <div id="local-charts-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
                 </div>
                 <div id="rival-charts-section">
                     <h2 id="rival-charts-title" class="text-2xl font-bold mb-4 text-center text-red-600">Gráficos Equipo Rival</h2>
-                    <div id="rival-charts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                    <div id="rival-charts-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
                 </div>
             </div>
         </div>
@@ -271,6 +271,16 @@
             team.players.push(newPlayer);
             renderAllPlayers();
             renderPlayerCharts();
+            
+            const playerRows = team.listElement.querySelectorAll('.player-row');
+            const lastPlayerRow = playerRows[playerRows.length - 1];
+            if (lastPlayerRow) {
+                const input = lastPlayerRow.querySelector('.player-input');
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            }
         }
 
         function addSet() {
@@ -282,7 +292,7 @@
                 });
             });
             updateCurrentSetDisplay();
-            renderAllPlayers(); // Re-render para mostrar la UI del nuevo set
+            renderAllPlayers();
             renderPlayerCharts();
         }
 
@@ -525,6 +535,11 @@
             const button = e.target.closest('.action-btn');
             if (button) {
                 handleActionClick(e);
+                return;
+            }
+            
+            // FIX: Prevent re-rendering when clicking on an input field
+            if (e.target.classList.contains('player-input')) {
                 return;
             }
 
